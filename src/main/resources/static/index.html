@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>websocket简易聊天室</title>
+    <script src="js/lib/jquery-3.4.1.js"></script>
+    <script src="js/lib/vue.global.js"></script>
+</head>
+<body>
+<div id="app">
+    <div v-if="!loginUser" style="width: 200px;height: 400px;">
+        <div style="font-size: 14px;">用户名:</div>
+        <input type="text" name="username" v-model="username">
+        <!--<input type="text" name="password" v-model="password">-->
+        <input type="button" value="进入房间" @click="login">
+    </div>
+    <div v-else style="width: 200px;height: 400px;">
+        <div style="width: 300px;height: 20px;top: 0;text-align: left;font-size: 12px;">
+            当前用户：{{loginUser}}
+        </div>
+        <div style="width: 400px; height: 80%;display: flex;">
+            <div style="width: 200px; height: 100%; border: rgba(153,165,172,0.29) solid 1px;font-size: 12px;overflow-y: scroll;">
+                <div v-for="item in msgList" style="display: inline-block;width: 100%;">
+                    {{item.fromUser + ': ' + item.message}}
+                </div>
+            </div>
+            <div style="width: 100px; height: 100%; border: rgba(153,165,172,0.29) solid 1px;font-size: 12px;overflow-y: scroll;">
+                <div style="text-align: center;">房间成员({{userList.length}})</div>
+                <div v-for="item in userList">
+                    {{item}}
+                </div>
+            </div>
+        </div>
+
+        <input type="text" v-model="msg" style="width: 97%;">
+        <input type="button" value="发送" @click="sendMsg">
+    </div>
+</div>
+</body>
+<script>
+    const {createApp, ref} = Vue
+
+    createApp({
+        setup() {
+            let username = ref("");
+            let password = ref("");
+            let loginUser = ref("");
+            let msg = ref("");
+            let msgList = ref([]);
+            let userList = ref([]);
+            let websocket;
+
+            const initWebSocket = () => {
+                websocket = new WebSocket("ws://localhost:8080/chat");
+                websocket.onopen = () => {
+                    //msgList.value.push({systemMsg: true, message: '连接房间成功'});
+                }
+                websocket.onmessage = (e) => {
+                    let msg = JSON.parse(e.data);
+                    console.log(msg);
+
+                    if(msg.systemMsg){
+                        userList.value = JSON.parse(msg.message);
+                    }else {
+                        msgList.value.push(JSON.parse(e.data));
+                    }
+
+                }
+                websocket.onerror = (e) =>{
+                    alert("连接房间失败，退出房间");
+                    loginUser.value = "";
+                }
+            }
+
+            const sendMsg = () => {
+                if (msg.value.length > 0) {
+                    websocket.send(JSON.stringify({message: msg.value}));
+                    msg.value = '';
+                }
+            }
+
+            const login = () => {
+                $.ajax({
+                    url: "http://localhost:8080/login",
+                    method: "POST",
+                    contentType: "application/json;charset=UTF-8",
+                    /*data: JSON.stringify({"username": username.value, "password": password.value}),*/
+                    data: JSON.stringify({"username": username.value}),
+                    success: (res) => {
+                        console.log(res);
+                        if(res.code === '200'){
+                            loginUser.value = res.data.username;
+                            initWebSocket();
+                        }else {
+                            alert("进入房间失败：" + res.data);
+                        }
+
+                    },
+                    error: (err) => {
+                        console.log(err);
+                        alert("进入房间失败：" + JSON.stringify(err));
+                    }
+                });
+            }
+
+            return {
+                username,
+                password,
+                login,
+                loginUser,
+                msg,
+                msgList,
+                sendMsg,
+                userList,
+            }
+        },
+        mounted() {
+        },
+
+    }).mount('#app');
+</script>
+</html>
